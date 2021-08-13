@@ -9,7 +9,7 @@ import (
 
 func check(e error) { if e != nil {panic(e)} }
 
-func Split(r rune) bool { return r == ',' || r == ' ' || r == '\t' }
+func SplitOn(r rune) bool { return r == ',' || r == ' ' || r == '\t' }
 
 func main() {
     regBin := map[string] uint32{
@@ -48,6 +48,7 @@ func main() {
     }
 
     opBin := map[string] uint32 {
+        //"lui" : 0b  00000 0110111 
         "add" : 0b00000000000000000000000000110011,
         "sub" : 0b01000000000000000000000000110011,
         "sll" : 0b00000000000000000001000000110011,
@@ -66,46 +67,49 @@ func main() {
 
     scanner := bufio.NewScanner(file)
     scanner.Split(bufio.ScanLines)
-    var line []string
+    var code []string
     var instruction uint32
     lineCounter := 1
 
     for scanner.Scan() {
-        line = strings.FieldsFunc(scanner.Text(), Split)
-        if len(line) == 0 { continue }
-        switch(line[0]) {
+        //fmt.Println(scanner.Text())
+        line := strings.Split(scanner.Text(), "#")[0]
+        //fmt.Println(line)
+        code = strings.FieldsFunc(line, SplitOn)
+        if len(code) == 0 { continue }
+        switch(code[0]) {
         case "add":
-            instruction = opBin[line[0]] | regBin[line[3]]<<20 | regBin[line[2]]<<15 | regBin[line[1]] << 7
+            instruction = opBin[code[0]] | regBin[code[3]]<<20 | regBin[code[2]]<<15 | regBin[code[1]] << 7
 
         case "sub":
-            instruction = opBin[line[0]] | regBin[line[3]]<<20 | regBin[line[2]]<<15 | regBin[line[1]]<<7
+            instruction = opBin[code[0]] | regBin[code[3]]<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7
 
         case "sll":
-            instruction = opBin[line[0]] | (regBin[line[3]] << 20) | (regBin[line[2]] << 15) | (regBin[line[1]] << 7)
+            instruction = opBin[code[0]] | (regBin[code[3]] << 20) | (regBin[code[2]] << 15) | (regBin[code[1]] << 7)
 
         case "slt":
-            instruction = opBin[line[0]] | (regBin[line[3]] << 20) | (regBin[line[2]] << 15) | (regBin[line[1]] << 7)
+            instruction = opBin[code[0]] | (regBin[code[3]] << 20) | (regBin[code[2]] << 15) | (regBin[code[1]] << 7)
 
         case "sltu":
-            instruction = opBin[line[0]] | (regBin[line[3]] << 20) | (regBin[line[2]] << 15) | (regBin[line[1]] << 7)
+            instruction = opBin[code[0]] | (regBin[code[3]] << 20) | (regBin[code[2]] << 15) | (regBin[code[1]] << 7)
 
         case "xor":
-            instruction = opBin[line[0]] | (regBin[line[3]] << 20) | (regBin[line[2]] << 15) | (regBin[line[1]] << 7)
+            instruction = opBin[code[0]] | (regBin[code[3]] << 20) | (regBin[code[2]] << 15) | (regBin[code[1]] << 7)
 
         case "srl":
-            instruction = opBin[line[0]] | (regBin[line[3]] << 20) | (regBin[line[2]] << 15) | (regBin[line[1]] << 7)
+            instruction = opBin[code[0]] | (regBin[code[3]] << 20) | (regBin[code[2]] << 15) | (regBin[code[1]] << 7)
 
         case "sra":
-            instruction = opBin[line[0]] | (regBin[line[3]] << 20) | (regBin[line[2]] << 15) | (regBin[line[1]] << 7)
+            instruction = opBin[code[0]] | (regBin[code[3]] << 20) | (regBin[code[2]] << 15) | (regBin[code[1]] << 7)
 
         case "or":
-            instruction = opBin[line[0]] | (regBin[line[3]] << 20) | (regBin[line[2]] << 15) | (regBin[line[1]] << 7)
+            instruction = opBin[code[0]] | (regBin[code[3]] << 20) | (regBin[code[2]] << 15) | (regBin[code[1]] << 7)
 
         case "and":
-            instruction = opBin[line[0]] | (regBin[line[3]] << 20) | (regBin[line[2]] << 15) | (regBin[line[1]] << 7)
+            instruction = opBin[code[0]] | (regBin[code[3]] << 20) | (regBin[code[2]] << 15) | (regBin[code[1]] << 7)
 
         default:
-            fmt.Println("Syntax Error on line: ", lineCounter)
+            fmt.Println("Syntax Error on code: ", lineCounter)
         }
 
         lineCounter++
