@@ -1,15 +1,16 @@
 package main
-
 import (
     "fmt"
-    "strings" 
+    "strings"
     "bufio"
     "os"
+    "strconv"
+    "log"
 )
 
 func check(e error) { if e != nil {panic(e)} }
 
-func SplitOn(r rune) bool { return r == ',' || r == ' ' || r == '\t' }
+func SplitOn(r rune) bool { return r == ',' || r == ' ' || r == '\t' } // delimiters to split on
 
 func main() {
     regBin := map[string] uint32{
@@ -48,17 +49,53 @@ func main() {
     }
 
     opBin := map[string] uint32 {
-        //"lui" : 0b  00000 0110111 
-        "add" : 0b00000000000000000000000000110011,
-        "sub" : 0b01000000000000000000000000110011,
-        "sll" : 0b00000000000000000001000000110011,
-        "slt" : 0b00000000000000000010000000110011,
-        "sltu": 0b00000000000000000011000000110011,
-        "xor" : 0b00000000000000000100000000110011,
-        "srl" : 0b00000000000000000101000000110011,
-        "sra" : 0b01000000000000000101000000110011,
-        "or"  : 0b00000000000000000110000000110011,
-        "and" : 0b00000000000000000111000000110011,
+        "lui"   : 0b00000000000000000000000000110111,
+        "auipc" : 0b00000000000000000000000000010111,
+        "jal"   : 0b00000000000000000000000001101111,
+        "jalr"  : 0b00000000000000000000000001100111,
+
+        "beq"   : 0b00000000000000000000000001100011,
+        "bne"   : 0b00000000000000000001000001100011,
+        "blt"   : 0b00000000000000000100000001100011,
+        "bge"   : 0b00000000000000000101000001100011,
+        "bltu"  : 0b00000000000000000110000001100011,
+        "bgeu"  : 0b00000000000000000111000001100011,
+
+        "lb"    : 0b00000000000000000000000000000011,
+        "lh"    : 0b00000000000000000001000000000011,
+        "lw"    : 0b00000000000000000010000000000011,
+        "lbu"   : 0b00000000000000000100000000000011,
+        "lhu"   : 0b00000000000000000101000000000011,
+
+        "sb"    : 0b00000000000000000000000000100011,
+        "sh"    : 0b00000000000000000001000000100011,
+        "sw"    : 0b00000000000000000010000000100011,
+
+        "addi"  : 0b00000000000000000000000000010011,
+        "slti"  : 0b00000000000000000010000000010011,
+        "sltiu" : 0b00000000000000000011000000010011,
+        "xori"  : 0b00000000000000000100000000010011,
+        "ori"   : 0b00000000000000000110000000010011,
+        "andi"  : 0b00000000000000000111000000010011,
+
+        "slli"  : 0b00000000000000000001000000010011,
+        "srli"  : 0b00000000000000000101000000010011,
+        "srai"  : 0b01000000000000000101000000010011,
+
+        "add"   : 0b00000000000000000000000000110011,
+        "sub"   : 0b01000000000000000000000000110011,
+        "sll"   : 0b00000000000000000001000000110011,
+        "slt"   : 0b00000000000000000010000000110011,
+        "sltu"  : 0b00000000000000000011000000110011,
+        "xor"   : 0b00000000000000000100000000110011,
+        "srl"   : 0b00000000000000000101000000110011,
+        "sra"   : 0b01000000000000000101000000110011,
+        "or"    : 0b00000000000000000110000000110011,
+        "and"   : 0b00000000000000000111000000110011,
+
+        "ecall" : 0b00000000000000000000000001110011,
+        "ebreak": 0b00000010000000000000000001110011,
+
     }
 
     if len(os.Args) != 2 { fmt.Println("Usage:", os.Args[0], "FILE.s") }
@@ -69,51 +106,79 @@ func main() {
     scanner.Split(bufio.ScanLines)
     var code []string
     var instruction uint32
+    var address uint32 = 0
     lineCounter := 1
 
+    // set up write file for machine code comparison
+    f, err := os.Create("asm-tests/asm-u-bin/sub-ns-mc-u.txt")
+    if err != nil { log.Fatal(err) }
+    defer f.Close()
+
+    // first pass
     for scanner.Scan() {
         //fmt.Println(scanner.Text())
-        line := strings.Split(scanner.Text(), "#")[0]
+        line := strings.Split(scanner.Text(), "#")[0] // get any text before the comment "#" and ignore any text after it
         //fmt.Println(line)
-        code = strings.FieldsFunc(line, SplitOn)
+        code = strings.FieldsFunc(line, SplitOn) // split into n strings 
         if len(code) == 0 { continue }
-        switch(code[0]) {
+        switch(code[0]) { // code[0] is operation
+        // code[1] is rd, code[2] is rs1 code[3] is rs2 
+        case "addi":
+            if len(code) != 4 { fmt.Println("Missing argument on line: ", lineCounter) }
+            //if code[4]
+            imm, _ := strconv.Atoi(code[3])
+            instruction = uint32(imm)<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]]
+
         case "add":
-            instruction = opBin[code[0]] | regBin[code[3]]<<20 | regBin[code[2]]<<15 | regBin[code[1]] << 7
+            if len(code) != 4 { fmt.Println("Missing argument on line: ", lineCounter) }
+            instruction = regBin[code[3]]<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]]
 
         case "sub":
-            instruction = opBin[code[0]] | regBin[code[3]]<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7
+            if len(code) != 4 { fmt.Println("Missing argument on line: ", lineCounter) }
+            instruction = regBin[code[3]]<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]]
 
         case "sll":
-            instruction = opBin[code[0]] | (regBin[code[3]] << 20) | (regBin[code[2]] << 15) | (regBin[code[1]] << 7)
+            if len(code) != 4 { fmt.Println("Missing argument on line: ", lineCounter) }
+            instruction = regBin[code[3]]<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]]
 
         case "slt":
-            instruction = opBin[code[0]] | (regBin[code[3]] << 20) | (regBin[code[2]] << 15) | (regBin[code[1]] << 7)
+            if len(code) != 4 { fmt.Println("Missing argument on line: ", lineCounter) }
+            instruction = regBin[code[3]] << 20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]]
 
         case "sltu":
-            instruction = opBin[code[0]] | (regBin[code[3]] << 20) | (regBin[code[2]] << 15) | (regBin[code[1]] << 7)
+            if len(code) != 4 { fmt.Println("Missing argument on line: ", lineCounter) }
+            instruction = regBin[code[3]]<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]]
 
         case "xor":
-            instruction = opBin[code[0]] | (regBin[code[3]] << 20) | (regBin[code[2]] << 15) | (regBin[code[1]] << 7)
+            if len(code) != 4 { fmt.Println("Missing argument on line: ", lineCounter) }
+            instruction = regBin[code[3]]<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]]
 
         case "srl":
-            instruction = opBin[code[0]] | (regBin[code[3]] << 20) | (regBin[code[2]] << 15) | (regBin[code[1]] << 7)
+            if len(code) != 4 { fmt.Println("Missing argument on line: ", lineCounter) }
+            instruction = regBin[code[3]]<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]]
 
         case "sra":
-            instruction = opBin[code[0]] | (regBin[code[3]] << 20) | (regBin[code[2]] << 15) | (regBin[code[1]] << 7)
+            if len(code) != 4 { fmt.Println("Missing argument on line: ", lineCounter) }
+            instruction = regBin[code[3]]<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]]
 
         case "or":
-            instruction = opBin[code[0]] | (regBin[code[3]] << 20) | (regBin[code[2]] << 15) | (regBin[code[1]] << 7)
+            if len(code) != 4 { fmt.Println("Missing argument on line: ", lineCounter) }
+            instruction = regBin[code[3]]<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]]
 
         case "and":
-            instruction = opBin[code[0]] | (regBin[code[3]] << 20) | (regBin[code[2]] << 15) | (regBin[code[1]] << 7)
+            if len(code) != 4 { fmt.Println("Missing argument on line: ", lineCounter) }
+            instruction = regBin[code[3]]<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]]
 
         default:
-            fmt.Println("Syntax Error on code: ", lineCounter)
+            fmt.Println("Syntax Error on line: ", lineCounter)
         }
 
         lineCounter++
-        fmt.Printf("0x%x\n", instruction)
+        address += 4
+        fmt.Printf("Address: 0x%08x   Instruction:  0x%08x\n", address, instruction)
+
+        // write machine code to file for comparisons
+        f.WriteString(fmt.Sprintf("0x%08x\n", instruction))
     }
 
     file.Close()
