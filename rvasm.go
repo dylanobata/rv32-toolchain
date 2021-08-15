@@ -5,12 +5,40 @@ import (
     "bufio"
     "os"
     "strconv"
-    "log"
+    "errors"
+//    "log"
 )
 
 func check(e error) { if e != nil {panic(e)} }
 
 func SplitOn(r rune) bool { return r == ',' || r == ' ' || r == '\t' } // delimiters to split on
+
+func isValidImmediate(s string) (uint64, error) {
+    var imm1, imm2, imm3 uint64
+    var err1, err2, err3 error
+    imm1, err1 = strconv.ParseUint(s, 10, 32) // check if s is a decimal number
+    if strings.HasPrefix(s, "0x") {
+        imm2, err2 = strconv.ParseUint(s[2:], 16, 64) // check if s is hex
+        if imm2 > 0xFFFFFFFF {
+            return 0, errors.New("Immediate value out of range")
+        }
+    } else if strings.HasPrefix(s, "0b") {
+        imm3, err3 = strconv.ParseUint(s[2:], 2, 64) // check if s is binary
+        if imm3 > 0xFFFFFFFF {
+            return 0, errors.New("Immediate value out of range")
+        }
+    }
+    if err1 != nil && err2 != nil && err3 != nil {
+        return 0, errors.New("Invalid immediate value")
+    } else if err1 == nil {
+        return imm1, nil
+    } else if err2 == nil {
+        return imm2, nil
+    } else {
+        return imm3, nil
+    }
+}
+
 
 func main() {
     regBin := map[string] uint32{
@@ -110,9 +138,9 @@ func main() {
     lineCounter := 1
 
     // set up write file for machine code comparison
-    f, err := os.Create("asm-tests/asm-u-bin/sub-ns-mc-u.txt")
-    if err != nil { log.Fatal(err) }
-    defer f.Close()
+    //f, err := os.Create("asm-tests/asm-u-bin/add-ns-mc-u.txt")
+    //if err != nil { log.Fatal(err) }
+    //defer f.Close()
 
     // first pass
     for scanner.Scan() {
@@ -122,55 +150,26 @@ func main() {
         code = strings.FieldsFunc(line, SplitOn) // split into n strings 
         if len(code) == 0 { continue }
         switch(code[0]) { // code[0] is operation
-        // code[1] is rd, code[2] is rs1 code[3] is rs2 
-        case "addi":
+
+        case "addi", "slti", "sltiu", "xori", "ori", "andi":
             if len(code) != 4 { fmt.Println("Missing argument on line: ", lineCounter) }
-            //if code[4]
-            imm, _ := strconv.Atoi(code[3])
+            imm, err := isValidImmediate(code[3])
+            if err != nil {
+                fmt.Printf("Error on line %d: %s\n", lineCounter, err)
+                os.Exit(0)
+            }
             instruction = uint32(imm)<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]]
 
-        case "add":
-            if len(code) != 4 { fmt.Println("Missing argument on line: ", lineCounter) }
-            instruction = regBin[code[3]]<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]]
-
-        case "sub":
-            if len(code) != 4 { fmt.Println("Missing argument on line: ", lineCounter) }
-            instruction = regBin[code[3]]<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]]
-
-        case "sll":
-            if len(code) != 4 { fmt.Println("Missing argument on line: ", lineCounter) }
-            instruction = regBin[code[3]]<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]]
-
-        case "slt":
-            if len(code) != 4 { fmt.Println("Missing argument on line: ", lineCounter) }
-            instruction = regBin[code[3]] << 20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]]
-
-        case "sltu":
-            if len(code) != 4 { fmt.Println("Missing argument on line: ", lineCounter) }
-            instruction = regBin[code[3]]<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]]
-
-        case "xor":
-            if len(code) != 4 { fmt.Println("Missing argument on line: ", lineCounter) }
-            instruction = regBin[code[3]]<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]]
-
-        case "srl":
-            if len(code) != 4 { fmt.Println("Missing argument on line: ", lineCounter) }
-            instruction = regBin[code[3]]<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]]
-
-        case "sra":
-            if len(code) != 4 { fmt.Println("Missing argument on line: ", lineCounter) }
-            instruction = regBin[code[3]]<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]]
-
-        case "or":
-            if len(code) != 4 { fmt.Println("Missing argument on line: ", lineCounter) }
-            instruction = regBin[code[3]]<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]]
-
-        case "and":
-            if len(code) != 4 { fmt.Println("Missing argument on line: ", lineCounter) }
-            instruction = regBin[code[3]]<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]]
+        case "add", "sub", "sll", "slt", "sltu", "xor", "srl", "sra", "or", "and":
+            if len(code) != 4 {
+                fmt.Println("Missing argument on line: ", lineCounter)
+                os.Exit(0)
+            }
+            instruction = regBin[code[3]]<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]] // code[1] = rd, code[2] = rs1 code[3] = rs2 
 
         default:
             fmt.Println("Syntax Error on line: ", lineCounter)
+            os.Exit(0)
         }
 
         lineCounter++
@@ -178,7 +177,7 @@ func main() {
         fmt.Printf("Address: 0x%08x   Instruction:  0x%08x\n", address, instruction)
 
         // write machine code to file for comparisons
-        f.WriteString(fmt.Sprintf("0x%08x\n", instruction))
+        //f.WriteString(fmt.Sprintf("0x%08x\n", instruction))
     }
 
     file.Close()
