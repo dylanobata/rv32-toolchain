@@ -1,4 +1,5 @@
 package main
+
 import (
     "fmt"
     "strings"
@@ -13,21 +14,20 @@ func check(e error) { if e != nil {panic(e)} }
 
 func SplitOn(r rune) bool { return r == ',' || r == ' ' || r == '\t' } // delimiters to split on
 
-func isValidImmediate(s string) (uint64, error) {
-    var imm1, imm2, imm3 uint64
+func isValidImmediate(s string) (int64, error) {
+    var imm1, imm2, imm3 int64
     var err1, err2, err3 error
-    imm1, err1 = strconv.ParseUint(s, 10, 32) // check if s is a decimal number
+    imm1, err1 = strconv.ParseInt(s, 10, 32) // check if s is a decimal number
     if strings.HasPrefix(s, "0x") {
-        imm2, err2 = strconv.ParseUint(s[2:], 16, 64) // check if s is hex
-        if imm2 > 0xFFFFFFFF {
-            return 0, errors.New("Immediate value out of range")
-        }
+        imm2, err2 = strconv.ParseInt(s[2:], 16, 64) // check if s is hex
+    } else if strings.HasPrefix(s, "-0x") {
+        imm2, err2 = strconv.ParseInt(string(s[0]) + s[3:], 16, 64)
     } else if strings.HasPrefix(s, "0b") {
-        imm3, err3 = strconv.ParseUint(s[2:], 2, 64) // check if s is binary
-        if imm3 > 0xFFFFFFFF {
-            return 0, errors.New("Immediate value out of range")
-        }
+        imm3, err3 = strconv.ParseInt(s[2:], 2, 64) // check if s is binary
+    } else if strings.HasPrefix(s, "-0b") {
+        imm3, err3 = strconv.ParseInt(string(s[0]) + s[3:], 2, 64)
     }
+
     if err1 != nil && err2 != nil && err3 != nil {
         return 0, errors.New("Invalid immediate value")
     } else if err1 == nil {
@@ -130,7 +130,7 @@ func main() {
     file, err := os.Open(os.Args[1])
     check(err)
 
-    scanner := bufio.NewScanner(file)
+    scanner := bufio.NewScanner(file) // stores content from file
     scanner.Split(bufio.ScanLines)
     var code []string
     var instruction uint32
@@ -150,12 +150,28 @@ func main() {
         code = strings.FieldsFunc(line, SplitOn) // split into n strings 
         if len(code) == 0 { continue }
         switch(code[0]) { // code[0] is operation
+        case "lui":
+           if len(code) != 3 { fmt.Println("Incorrect argument count on line: ", lineCounter) }
+           imm, err := isValidImmediate(code[2])
+           if err != nil {
+            fmt.Printf("Error on line %d: %s\n", lineCounter, err)
+            os.Exit(0)
+           }
+           if imm > 1048575 || imm < 0 {
+                fmt.Printf("Error on line %d: Immediate value out of range (should be between 0 and 1048575)")
+                os.Exit(0)
+           }
+           instruction = uint32(imm)<<12 | regBin[code[1]]<<7 | opBin[code[0]]
 
         case "addi", "slti", "sltiu", "xori", "ori", "andi":
-            if len(code) != 4 { fmt.Println("Missing argument on line: ", lineCounter) }
+            if len(code) != 4 { fmt.Println("Incorrect argument count on line: ", lineCounter) }
             imm, err := isValidImmediate(code[3])
             if err != nil {
                 fmt.Printf("Error on line %d: %s\n", lineCounter, err)
+                os.Exit(0)
+            }
+            if imm > 2047 || imm < -2048 {
+                fmt.Printf("Error on line %d: Immediate value out of range (should be between -2048 and 2047)\n", lineCounter)
                 os.Exit(0)
             }
             instruction = uint32(imm)<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]]
