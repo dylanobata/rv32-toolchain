@@ -12,7 +12,7 @@ import (
 
 func check(e error) { if e != nil {panic(e)} }
 
-func SplitOn(r rune) bool { return r == ',' || r == ' ' || r == '\t' } // delimiters to split on
+func SplitOn(r rune) bool { return r == ',' || r == ' ' || r == '\t' || r == '(' || r == ')'} // delimiters to split on
 
 func isValidImmediate(s string) (int64, error) {
     var imm1, imm2, imm3 int64
@@ -149,21 +149,59 @@ func main() {
         //fmt.Println(line)
         code = strings.FieldsFunc(line, SplitOn) // split into n strings 
         if len(code) == 0 { continue }
-        switch(code[0]) { // code[0] is operation
-        case "lui":
-           if len(code) != 3 { fmt.Println("Incorrect argument count on line: ", lineCounter) }
-           imm, err := isValidImmediate(code[2])
-           if err != nil {
-            fmt.Printf("Error on line %d: %s\n", lineCounter, err)
-            os.Exit(0)
-           }
-           if imm > 1048575 || imm < 0 {
-                fmt.Printf("Error on line %d: Immediate value out of range (should be between 0 and 1048575)")
-                os.Exit(0)
-           }
-           instruction = uint32(imm)<<12 | regBin[code[1]]<<7 | opBin[code[0]]
+        switch(code[0]) { // switch on operation 
 
-        case "addi", "slti", "sltiu", "xori", "ori", "andi":
+        case "lui", "auipc", "jal":
+            if len(code) != 3 { fmt.Println("Incorrect argument count on line: ", lineCounter) }
+            imm, err := isValidImmediate(code[2])
+            if err != nil {
+                fmt.Printf("Error on line %d: %s\n", lineCounter, err)
+                os.Exit(0)
+            }
+            if imm > 1048575 || imm < 0 {
+                fmt.Printf("Error on line %d: Immediate value out of range (should be between 0 and 1048575)\n", lineCounter)
+                os.Exit(0)
+            }
+            /*
+            if code[0] == "jal" {
+                instruction = (imm & 0x80000) << 20 | (imm & 0xregBin[code[1]]<<7 | opBin[code[0]
+            } */
+            instruction = uint32(imm)<<12 | regBin[code[1]]<<7 | opBin[code[0]]
+
+        /*
+        case "beq", "bne", "blt", "bge", "bltu", "bgeu": // operation rs1, rs2, imm
+            if len(code) != 4 { fmt.Println("Incorrect argument count on line: ", lineCounter) }
+            imm, err := isValidImmediate(code[3])
+            if err != nil {
+                fmt.Printf("Error on line %d: %s\n", lineCounter, err)
+                os.Exit(0)
+            }
+        */
+        case "lb", "lh", "lw", "lbu", "lhu": // operation rd, imm(rs1)
+        if len(code) != 4 {
+                fmt.Println("Incorrect argument count on line: ", lineCounter)
+            }
+            imm, err := isValidImmediate(code[2])
+            if err != nil {
+                fmt.Printf("Error on line %d: %s\n", lineCounter, err)
+                os.Exit(0)
+            }
+            // code[0] is operation, code[1] is rd, code[2] is imm, code[3] is rs1
+            instruction = uint32(imm)<<20 | regBin[code[3]]<<15 | regBin[code[1]]<<7 | opBin[code[0]]
+
+        case "sb", "sh", "sw": // operation rs2, imm(rs1)
+            if len(code) != 4 {
+                fmt.Println("Incorrect argument count on line: ", lineCounter)
+            }
+            imm, err := isValidImmediate(code[2])
+            if err != nil {
+                fmt.Printf("Error on line %d: %s\n", lineCounter, err)
+                os.Exit(0)
+            }
+            // code[0] is operation, code[1] is rs2, code[2] is imm, code[3] is rs1
+            instruction = (uint32(imm) & 0xFE)<<25 | regBin[code[1]]<<20 | regBin[code[3]]<<15 | (uint32(imm) & 0x1F)<<7 | opBin[code[0]]
+
+        case "addi", "slti", "sltiu", "xori", "ori", "andi", "jalr": // operation  rd, rs1, immediate
             if len(code) != 4 { fmt.Println("Incorrect argument count on line: ", lineCounter) }
             imm, err := isValidImmediate(code[3])
             if err != nil {
@@ -174,15 +212,27 @@ func main() {
                 fmt.Printf("Error on line %d: Immediate value out of range (should be between -2048 and 2047)\n", lineCounter)
                 os.Exit(0)
             }
-            instruction = uint32(imm)<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]]
+            instruction = uint32(imm)<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]] // code[0] = operation, code[1]=rd, code[2]=rs1
 
-        case "add", "sub", "sll", "slt", "sltu", "xor", "srl", "sra", "or", "and":
+        case "slli", "srli", "srai":
             if len(code) != 4 {
-                fmt.Println("Missing argument on line: ", lineCounter)
+                fmt.Println("Incorrect argument count on line: ", lineCounter)
                 os.Exit(0)
             }
-            instruction = regBin[code[3]]<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]] // code[1] = rd, code[2] = rs1 code[3] = rs2 
 
+        case "add", "sub", "sll", "slt", "sltu", "xor", "srl", "sra", "or", "and": // operation rd, rs1, rs2
+            if len(code) != 4 {
+                fmt.Println("Incorrect argument count on line: ", lineCounter)
+                os.Exit(0)
+            }
+            instruction = regBin[code[3]]<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]] // code[0]=operation, code[1]=rd, code[2]=rs1 code[3]=rs2 
+
+        case "ecall", "ebreak":
+            if len(code) != 1 {
+                fmt.Println("Too many arguments on line: ", lineCounter)
+                os.Exit(0)
+            }
+            instruction = opBin[code[0]]
         default:
             fmt.Println("Syntax Error on line: ", lineCounter)
             os.Exit(0)
