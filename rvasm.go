@@ -39,7 +39,6 @@ func isValidImmediate(s string) (int64, error) {
     }
 }
 
-
 func main() {
     regBin := map[string] uint32{
         "x0" : 0b00000,  "zero" : 0b00000,
@@ -142,13 +141,16 @@ func main() {
     //if err != nil { log.Fatal(err) }
     //defer f.Close()
 
-    // first pass
+    // second pass
     for scanner.Scan() {
         //fmt.Println(scanner.Text())
         line := strings.Split(scanner.Text(), "#")[0] // get any text before the comment "#" and ignore any text after it
         //fmt.Println(line)
         code = strings.FieldsFunc(line, SplitOn) // split into n strings 
-        if len(code) == 0 { continue }
+        if len(code) == 0 { // code is whitespace
+            lineCounter++
+            continue
+        }
         switch(code[0]) { // switch on operation 
 
         case "lui", "auipc", "jal":
@@ -178,7 +180,7 @@ func main() {
             }
         */
         case "lb", "lh", "lw", "lbu", "lhu": // operation rd, imm(rs1)
-        if len(code) != 4 {
+            if len(code) != 4 {
                 fmt.Println("Incorrect argument count on line: ", lineCounter)
             }
             imm, err := isValidImmediate(code[2])
@@ -214,11 +216,21 @@ func main() {
             }
             instruction = uint32(imm)<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]] // code[0] = operation, code[1]=rd, code[2]=rs1
 
-        case "slli", "srli", "srai":
+        case "slli", "srli", "srai": // operation rd, rs1, immediate
             if len(code) != 4 {
                 fmt.Println("Incorrect argument count on line: ", lineCounter)
                 os.Exit(0)
             }
+            imm, err := isValidImmediate(code[3])
+            if err != nil {
+                fmt.Printf("Error on line %d: %s\n", lineCounter, err)
+                os.Exit(0)
+            }
+            if imm > 31 {
+                fmt.Printf("Error on line %d: Immediate value out of range (should be between 0 and 31)")
+                os.Exit(0)
+            }
+            instruction = uint32(imm)<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]] // code[0]=operation, code[1]=rd, code[2]=rs1, code[3]=immediate
 
         case "add", "sub", "sll", "slt", "sltu", "xor", "srl", "sra", "or", "and": // operation rd, rs1, rs2
             if len(code) != 4 {
@@ -238,9 +250,9 @@ func main() {
             os.Exit(0)
         }
 
+        fmt.Printf("Address: 0x%08x     Line: %d    Instruction:  0x%08x\n", address, lineCounter, instruction)
         lineCounter++
         address += 4
-        fmt.Printf("Address: 0x%08x   Instruction:  0x%08x\n", address, instruction)
 
         // write machine code to file for comparisons
         //f.WriteString(fmt.Sprintf("0x%08x\n", instruction))
