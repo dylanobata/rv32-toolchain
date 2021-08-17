@@ -4,6 +4,7 @@ import (
     "fmt"
     "strings"
     "bufio"
+    "io"
     "os"
     "strconv"
     "errors"
@@ -21,7 +22,7 @@ func isValidImmediate(s string) (int64, error) {
     if strings.HasPrefix(s, "0x") {
         imm2, err2 = strconv.ParseInt(s[2:], 16, 64) // check if s is hex
     } else if strings.HasPrefix(s, "-0x") {
-        imm2, err2 = strconv.ParseInt(string(s[0]) + s[3:], 16, 64)
+        imm2, err2 = strconv.ParseInt(string(s[0]) + s[3:], 16, 64) // ignore the "0x" part but include the '-'
     } else if strings.HasPrefix(s, "0b") {
         imm3, err3 = strconv.ParseInt(s[2:], 2, 64) // check if s is binary
     } else if strings.HasPrefix(s, "-0b") {
@@ -136,14 +137,27 @@ func main() {
     var address uint32 = 0
     lineCounter := 1
 
+    // first pass
+    for scanner.Scan() {
+        line := strings.Split(scanner.Text(), "#")[0]
+        fmt.Println(line)
+    }
+    _, err = file.Seek(0, io.SeekStart)
+    scanner = bufio.NewScanner(file)
+    scanner.Split(bufio.ScanLines)
+
+
+
     // set up write file for machine code comparison
     //f, err := os.Create("asm-tests/asm-u-bin/add-ns-mc-u.txt")
     //if err != nil { log.Fatal(err) }
     //defer f.Close()
 
+    address = 0
+    lineCounter = 1
     // second pass
     for scanner.Scan() {
-        //fmt.Println(scanner.Text())
+        fmt.Println(scanner.Text())
         line := strings.Split(scanner.Text(), "#")[0] // get any text before the comment "#" and ignore any text after it
         //fmt.Println(line)
         code = strings.FieldsFunc(line, SplitOn) // split into n strings 
