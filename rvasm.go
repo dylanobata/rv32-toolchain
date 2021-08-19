@@ -19,6 +19,7 @@ func isValidImmediate(s string) (int64, error) {
     var imm1, imm2, imm3 int64
     var err1, err2, err3 error
     imm1, err1 = strconv.ParseInt(s, 10, 32) // check if s is a decimal number
+
     if strings.HasPrefix(s, "0x") {
         imm2, err2 = strconv.ParseInt(s[2:], 16, 64) // check if s is hex
     } else if strings.HasPrefix(s, "-0x") {
@@ -138,92 +139,113 @@ func main() {
     lineCounter := 1
 
     symbolTable := make(map[string]int64, 100)
+//    literalPool := make(map[string]int64, 100)
 
     for scanner.Scan() { // first pass
-        line := strings.Split(scanner.Text(), "#")[0]
-        code = strings.FieldsFunc(line, SplitOn)
+//        fmt.Println(scanner.Text())
+        line := strings.Split(scanner.Text(), "#")[0] // get any text before the comment "#" and ignore any text after it
+        code = strings.FieldsFunc(line, SplitOn) // split into n strings 
+        if len(code) == 0 { // filter out whitespace
+            lineCounter++
+            continue
+        }
         switch(code[0]) {
-
         case "lui", "auipc", "jal": // Instruction format:  op  rd, imm     or      label: op  rd, imm 
             if len(code) != 3 && len(code) != 4 {
                 fmt.Println("Incorrect argument count on line: ", lineCounter)
                 os.Exit(0)
             }
             if len(code) == 4 && !strings.HasSuffix(code[0], ":") {
-                fmt.Printf("%s not a valid label\n", code[0] 
+                fmt.Printf("%s not a valid label\n", code[0])
                 os.Exit(0)
             }
-            // check if imm has a constant definition 
-
+            if len(code) == 4 {
+                _, exists := symbolTable[code[0]]
+                if exists {
+                    symbolTable[code[0]] = address // if symbo exists in symbolTable, update value to valid address
+                }
+            }
         case "beq", "bne", "blt", "bge", "bltu", "bgeu": // Instruction format:  op rs1, rs2, label     or     label: op    rs1,rs2, label
             if len(code) != 4 && len(code) != 5 {
                 fmt.Println("Incorrect argument count on line: ", lineCounter)
                 os.Exit(0)
             }
-            if len(code) == 4 && !strings.HasSuffix(code[0], ":") {
-                fmt.Printf("%s not a valid label\n", code[0] 
-                os.Exit(0) 
+            if len(code) == 5 && !strings.HasSuffix(code[0], ":") {
+                fmt.Printf("%s not a valid label\n", code[0])
+                os.Exit(0)
             }
             // check if imm has a constant definition 
+            if len(code) == 4 {
+                _, exists := symbolTable[code[3]]
+                if !exists {
+                    symbolTable[code[3]] = -1 // if symbol is not in symbolTable, create entry
+                }
+            }
+            if len(code) == 5 {
+                _, exists := symbolTable[code[4]]
+                if !exists {
+                    symbolTable[code[4]] = -1
+                }
+            }
 
+        case "lb", "lh", "lw", "lbu", "lhu": // Instruction format: op rd, imm(rs1)     or      label: op rd, imm(rs1)
 
-        case "lb", "lh", "lw", "lbu", "lhu":
-            if len(code) != 3 && len(code) != 4 {
+            if len(code) != 4 && len(code) != 5 {
                 fmt.Println("Incorrect argument count on line: ", lineCounter)
                 os.Exit(0)
             }
-            if len(code) == 4 && !strings.HasSuffix(code[0], ":") {
-                fmt.Printf("%s not a valid label\n", code[0] 
+            if len(code) == 5 && !strings.HasSuffix(code[0], ":") {
+                fmt.Printf("%s not a valid label\n", code[0])
                 os.Exit(0)
             }
             // check if imm has a constant definition  
-        case "sb", "sh", "sw":
-            if len(code) != 3 && len(code) != 4 {
+        case "sb", "sh", "sw": // Instruction format: op rs2, imm(rs1)      or      label: op rs2, imm(rs1) 
+            if len(code) != 4 && len(code) != 5 {
                 fmt.Println("Incorrect argument count on line: ", lineCounter)
                 os.Exit(0)
             }
-            if len(code) == 4 && !strings.HasSuffix(code[0], ":") {
-                fmt.Printf("%s not a valid label\n", code[0] 
+            if len(code) == 5 && !strings.HasSuffix(code[0], ":") {
+                fmt.Printf("%s not a valid label\n", code[0])
                 os.Exit(0)
             }
             // check if imm has a constant definition  
-        case "addi", "slti", "sltiu", "xori", "ori", "andi", "jalr":
-            if len(code) != 3 && len(code) != 4 {
+        case "addi", "slti", "sltiu", "xori", "ori", "andi", "jalr": // Instruction format: op rd, rs1, imm     or      label:  op rd, rs1, imm
+            if len(code) != 4 && len(code) != 5 {
                 fmt.Println("Incorrect argument count on line: ", lineCounter)
                 os.Exit(0)
             }
-            if len(code) == 4 && !strings.HasSuffix(code[0], ":") {
-                fmt.Printf("%s not a valid label\n", code[0] 
+            if len(code) == 5 && !strings.HasSuffix(code[0], ":") {
+                fmt.Printf("%s not a valid label\n", code[0])
                 os.Exit(0)
             }
             // check if imm has a constant definition 
-        case "slli", "srli", "srai":
-            if len(code) != 3 && len(code) != 4 {
+        case "slli", "srli", "srai": // Instruction format: op rd, rs1, imm     or      label: rd, rs1, imm
+            if len(code) != 4 && len(code) != 5 {
                 fmt.Println("Incorrect argument count on line: ", lineCounter)
                 os.Exit(0)
             }
-            if len(code) == 4 && !strings.HasSuffix(code[0], ":") {
-                fmt.Printf("%s not a valid label\n", code[0] 
+            if len(code) == 5 && !strings.HasSuffix(code[0], ":") {
+                fmt.Printf("%s not a valid label\n", code[0])
                 os.Exit(0)
             }
             // check if imm has a constant definition 
-        case "add", "sub", "sll", "slt", "sltu", "xor", "srl", "sra", "or", "and":
-            if len(code) != 3 && len(code) != 4 {
+        case "add", "sub", "sll", "slt", "sltu", "xor", "srl", "sra", "or", "and": // Instruction format: op rd, rs1, rs2       or      label: op rd, rs1, rs2
+            if len(code) != 4 && len(code) != 5 {
                 fmt.Println("Incorrect argument count on line: ", lineCounter)
                 os.Exit(0)
             }
-            if len(code) == 4 && !strings.HasSuffix(code[0], ":") {
-                fmt.Printf("%s not a valid label\n", code[0] 
+            if len(code) == 5 && !strings.HasSuffix(code[0], ":") {
+                fmt.Printf("%s not a valid label\n", code[0])
                 os.Exit(0)
             }
             // check if imm has a constant definition 
-        case "ecall", "ebreak":
-            if len(code) != 3 && len(code) != 4 {
+        case "ecall", "ebreak": // Instruction format: op       or      label: op
+            if len(code) != 1 && len(code) != 2 {
                 fmt.Println("Incorrect argument count on line: ", lineCounter)
                 os.Exit(0)
             }
-            if len(code) == 4 && !strings.HasSuffix(code[0], ":") {
-                fmt.Printf("%s not a valid label\n", code[0] 
+            if len(code) == 2 && !strings.HasSuffix(code[0], ":") {
+                fmt.Printf("%s not a valid label\n", code[0])
                 os.Exit(0)
             }
             // check if imm has a constant definition 
@@ -231,6 +253,9 @@ func main() {
             fmt.Println("Syntax Error on line: ", lineCounter)
             os.Exit(0)
         }
+        lineCounter++
+        address += 4
+
    }
 
     // reset file to start and reinitialize scanner
@@ -246,7 +271,7 @@ func main() {
     address = 0
     lineCounter = 1
     for scanner.Scan() { // second pass
-        fmt.Println(scanner.Text())
+//        fmt.Println(scanner.Text())
         line := strings.Split(scanner.Text(), "#")[0] // get any text before the comment "#" and ignore any text after it
         //fmt.Println(line)
         code = strings.FieldsFunc(line, SplitOn) // split into n strings 
@@ -303,7 +328,7 @@ func main() {
                 fmt.Printf("Error on line %d: %s\n", lineCounter, err)
                 os.Exit(0)
             }
-            // code[0] is op, code[1] is rs2, code[2] is imm, code[3] is rs1
+            // code[0] = op, code[1] = rs2, code[2] = imm, code[3] = rs1
             instruction = (uint32(imm) & 0xFE)<<25 | regBin[code[1]]<<20 | regBin[code[3]]<<15 | (uint32(imm) & 0x1F)<<7 | opBin[code[0]]
 
         case "addi", "slti", "sltiu", "xori", "ori", "andi", "jalr": // op rd, rs1, immediate
