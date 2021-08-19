@@ -140,115 +140,167 @@ func main() {
 
     symbolTable := make(map[string]int64, 100)
 //    literalPool := make(map[string]int64, 100)
-
     for scanner.Scan() { // first pass
-//        fmt.Println(scanner.Text())
         line := strings.Split(scanner.Text(), "#")[0] // get any text before the comment "#" and ignore any text after it
-        code = strings.FieldsFunc(line, SplitOn) // split into n strings 
+        code = strings.FieldsFunc(line, SplitOn) // break code into its operation and operands 
         if len(code) == 0 { // filter out whitespace
             lineCounter++
             continue
         }
-        switch(code[0]) {
+        switchOnOp := code[0] // check if first entry of code is a label or an op
+        if strings.HasSuffix(switchOnOp, ":") {
+            label := strings.TrimSuffix(code[0], ":")
+            _, exists := symbolTable[label]
+            if exists {
+                symbolTable[label] = int64(address) // if label exists in symbolTable, update value to valid address
+            }
+            if len(code) >= 2 { // opcode is in code[1] if code[0] is a label
+                switchOnOp = code[1]
+            } else {
+                fmt.Println("Syntax Error on line: ", lineCounter)
+                os.Exit(0)
+            }
+        }
+
+        switch(switchOnOp) {
         case "lui", "auipc", "jal": // Instruction format:  op  rd, imm     or      label: op  rd, imm 
             if len(code) != 3 && len(code) != 4 {
                 fmt.Println("Incorrect argument count on line: ", lineCounter)
                 os.Exit(0)
             }
-            if len(code) == 4 && !strings.HasSuffix(code[0], ":") {
+            if len(code) == 4 && !strings.HasSuffix(code[0], ":") && len(code[0]) > 1 {
                 fmt.Printf("%s not a valid label\n", code[0])
                 os.Exit(0)
             }
-            if len(code) == 4 {
-                _, exists := symbolTable[code[0]]
+           if len(code) == 4 {
+                label := strings.TrimSuffix(code[0], ":")
+                _, exists := symbolTable[label]
                 if exists {
-                    symbolTable[code[0]] = address // if symbo exists in symbolTable, update value to valid address
+                    symbolTable[label] = int64(address) // if label exists in symbolTable, update value to valid address
                 }
             }
+
         case "beq", "bne", "blt", "bge", "bltu", "bgeu": // Instruction format:  op rs1, rs2, label     or     label: op    rs1,rs2, label
             if len(code) != 4 && len(code) != 5 {
                 fmt.Println("Incorrect argument count on line: ", lineCounter)
                 os.Exit(0)
             }
-            if len(code) == 5 && !strings.HasSuffix(code[0], ":") {
+            if len(code) == 5 && !strings.HasSuffix(code[0], ":") && len(code[0]) > 1{
                 fmt.Printf("%s not a valid label\n", code[0])
                 os.Exit(0)
             }
-            // check if imm has a constant definition 
             if len(code) == 4 {
                 _, exists := symbolTable[code[3]]
                 if !exists {
                     symbolTable[code[3]] = -1 // if symbol is not in symbolTable, create entry
                 }
+
             }
+
             if len(code) == 5 {
-                _, exists := symbolTable[code[4]]
+                label := strings.TrimSuffix(code[0], ":")
+                _, exists := symbolTable[code[0]]
+                if exists { // check if label exists in symbol table
+                    symbolTable[label] = int64(address)
+                }
+
+                _, exists = symbolTable[code[4]]
                 if !exists {
                     symbolTable[code[4]] = -1
                 }
             }
 
         case "lb", "lh", "lw", "lbu", "lhu": // Instruction format: op rd, imm(rs1)     or      label: op rd, imm(rs1)
-
             if len(code) != 4 && len(code) != 5 {
                 fmt.Println("Incorrect argument count on line: ", lineCounter)
                 os.Exit(0)
             }
-            if len(code) == 5 && !strings.HasSuffix(code[0], ":") {
+            if len(code) == 5 && !strings.HasSuffix(code[0], ":") && len(code[0]) > 1 {
                 fmt.Printf("%s not a valid label\n", code[0])
                 os.Exit(0)
             }
-            // check if imm has a constant definition  
+            if len(code) == 5 {
+               label := strings.TrimSuffix(code[0], ":")
+                _, exists := symbolTable[code[0]]
+                if exists {
+                    symbolTable[label] = int64(address) // if label exists in symbolTable, update value to valid address
+                }
+            }
+
         case "sb", "sh", "sw": // Instruction format: op rs2, imm(rs1)      or      label: op rs2, imm(rs1) 
             if len(code) != 4 && len(code) != 5 {
                 fmt.Println("Incorrect argument count on line: ", lineCounter)
                 os.Exit(0)
             }
-            if len(code) == 5 && !strings.HasSuffix(code[0], ":") {
+            if len(code) == 5 && !strings.HasSuffix(code[0], ":") && len(code[0]) > 1 {
                 fmt.Printf("%s not a valid label\n", code[0])
                 os.Exit(0)
             }
+            if len(code) == 5 {
+                label := strings.TrimSuffix(code[0], ":")
+                _, exists := symbolTable[code[0]]
+                if exists {
+                    symbolTable[label] = int64(address) // if label exists in symbolTable, update value to valid address
+                }
+            }
+
             // check if imm has a constant definition  
         case "addi", "slti", "sltiu", "xori", "ori", "andi", "jalr": // Instruction format: op rd, rs1, imm     or      label:  op rd, rs1, imm
             if len(code) != 4 && len(code) != 5 {
                 fmt.Println("Incorrect argument count on line: ", lineCounter)
                 os.Exit(0)
             }
-            if len(code) == 5 && !strings.HasSuffix(code[0], ":") {
+            if len(code) == 5 && !strings.HasSuffix(code[0], ":") && len(code[0]) > 1 {
                 fmt.Printf("%s not a valid label\n", code[0])
                 os.Exit(0)
             }
             // check if imm has a constant definition 
+            if len(code) == 5 {
+                label := strings.TrimSuffix(code[0], ":")
+                _, exists := symbolTable[label]
+                if exists {
+                    symbolTable[label] = int64(address) // if label exists in symbolTable, update value to valid address
+                }
+            }
+
         case "slli", "srli", "srai": // Instruction format: op rd, rs1, imm     or      label: rd, rs1, imm
             if len(code) != 4 && len(code) != 5 {
                 fmt.Println("Incorrect argument count on line: ", lineCounter)
                 os.Exit(0)
             }
-            if len(code) == 5 && !strings.HasSuffix(code[0], ":") {
+            if len(code) == 5 && !strings.HasSuffix(code[0], ":") && len(code[0]) > 1 {
                 fmt.Printf("%s not a valid label\n", code[0])
                 os.Exit(0)
             }
-            // check if imm has a constant definition 
+            if len(code) == 5 {
+                label := strings.TrimSuffix(code[0], ":")
+                _, exists := symbolTable[label]
+                if exists {
+                    symbolTable[label] = int64(address) // if label exists in symbolTable, update value to valid address
+                }
+            }
+
         case "add", "sub", "sll", "slt", "sltu", "xor", "srl", "sra", "or", "and": // Instruction format: op rd, rs1, rs2       or      label: op rd, rs1, rs2
             if len(code) != 4 && len(code) != 5 {
                 fmt.Println("Incorrect argument count on line: ", lineCounter)
                 os.Exit(0)
             }
-            if len(code) == 5 && !strings.HasSuffix(code[0], ":") {
+            if len(code) == 5 && !strings.HasSuffix(code[0], ":") && len(code[0]) > 1 {
                 fmt.Printf("%s not a valid label\n", code[0])
                 os.Exit(0)
             }
-            // check if imm has a constant definition 
+
         case "ecall", "ebreak": // Instruction format: op       or      label: op
             if len(code) != 1 && len(code) != 2 {
                 fmt.Println("Incorrect argument count on line: ", lineCounter)
                 os.Exit(0)
             }
-            if len(code) == 2 && !strings.HasSuffix(code[0], ":") {
+            if len(code) == 2 && !strings.HasSuffix(code[0], ":") && len(code[0]) > 1 {
                 fmt.Printf("%s not a valid label\n", code[0])
                 os.Exit(0)
             }
             // check if imm has a constant definition 
+
         default:
             fmt.Println("Syntax Error on line: ", lineCounter)
             os.Exit(0)
@@ -257,7 +309,9 @@ func main() {
         address += 4
 
    }
-
+    for key, element := range symbolTable {
+        fmt.Println("Key:", key, "Element:", element)
+    }
     // reset file to start and reinitialize scanner
     _, err = file.Seek(0, io.SeekStart)
     scanner = bufio.NewScanner(file)
@@ -271,16 +325,28 @@ func main() {
     address = 0
     lineCounter = 1
     for scanner.Scan() { // second pass
-//        fmt.Println(scanner.Text())
         line := strings.Split(scanner.Text(), "#")[0] // get any text before the comment "#" and ignore any text after it
-        //fmt.Println(line)
-        code = strings.FieldsFunc(line, SplitOn) // split into n strings 
-        if len(code) == 0 { // code is whitespace
+        code = strings.FieldsFunc(line, SplitOn) // split into  operation, operands, and/or labels
+        if len(code) == 0 { // code is whitespace, ignore it
             lineCounter++
             continue
         }
-        switch(code[0]) { // switch on operation 
-
+        switchOnOp := code[0] // check if first entry of code is a label or an op
+        if strings.HasSuffix(switchOnOp, ":") {
+            label := strings.TrimSuffix(code[0], ":")
+            _, exists := symbolTable[label]
+            if exists {
+                symbolTable[label] = int64(address) // if label exists in symbolTable, update value to valid address
+            }
+            if len(code) >= 2 { // opcode is in code[1] if code[0] is a label
+                switchOnOp = code[1]
+                code = code[1:] // reindex array so that op is at index 0 
+            } else {
+                fmt.Println("Syntax Error on line: ", lineCounter)
+                os.Exit(0)
+            }
+        }
+        switch(switchOnOp) { // switch on operation 
         case "lui", "auipc", "jal":
             if len(code) != 3 { fmt.Println("Incorrect argument count on line: ", lineCounter) }
             imm, err := isValidImmediate(code[2])
@@ -295,18 +361,18 @@ func main() {
             /*
             if code[0] == "jal" {
                 instruction = (imm & 0x80000) << 20 | (imm & 0xregBin[code[1]]<<7 | opBin[code[0]
-            } */
+            }
             instruction = uint32(imm)<<12 | regBin[code[1]]<<7 | opBin[code[0]]
-
-        /*
+            
+        */
         case "beq", "bne", "blt", "bge", "bltu", "bgeu": // op rs1, rs2, imm
-            if len(code) != 4 { fmt.Println("Incorrect argument count on line: ", lineCounter) }
+            /*if len(code) != 4 { fmt.Println("Incorrect argument count on line: ", lineCounter) }
             imm, err := isValidImmediate(code[3])
             if err != nil {
                 fmt.Printf("Error on line %d: %s\n", lineCounter, err)
                 os.Exit(0)
             }
-        */
+            */
         case "lb", "lh", "lw", "lbu", "lhu": // op rd, imm(rs1)
             if len(code) != 4 {
                 fmt.Println("Incorrect argument count on line: ", lineCounter)
@@ -316,9 +382,20 @@ func main() {
                 fmt.Printf("Error on line %d: %s\n", lineCounter, err)
                 os.Exit(0)
             }
-            // code[0] is operation, code[1] is rd, code[2] is imm, code[3] is rs1
-            instruction = uint32(imm)<<20 | regBin[code[3]]<<15 | regBin[code[1]]<<7 | opBin[code[0]]
-
+            op, opFound := opBin[code[0]]
+            rd, rdFound := regBin[code[1]]
+            rs1, rs1Found := regBin[code[3]]
+            if  opFound && rdFound && rs1Found {
+                instruction = uint32(imm)<<20 | rs1<<15 | rd<<7 | op
+            } else {
+                if !opFound {
+                    fmt.Println("Invalid operation on line", lineCounter)
+                    os.Exit(0)
+                } else if !rdFound || !rs1Found {
+                    fmt.Println("Invalid register on line", lineCounter)
+                    os.Exit(0)
+                }
+            }
         case "sb", "sh", "sw": // op rs2, imm(rs1)
             if len(code) != 4 {
                 fmt.Println("Incorrect argument count on line: ", lineCounter)
@@ -328,8 +405,15 @@ func main() {
                 fmt.Printf("Error on line %d: %s\n", lineCounter, err)
                 os.Exit(0)
             }
-            // code[0] = op, code[1] = rs2, code[2] = imm, code[3] = rs1
-            instruction = (uint32(imm) & 0xFE)<<25 | regBin[code[1]]<<20 | regBin[code[3]]<<15 | (uint32(imm) & 0x1F)<<7 | opBin[code[0]]
+            op, opFound := opBin[code[0]]
+            rs2, rs2Found := regBin[code[1]]
+            rs1, rs1Found := regBin[code[3]]
+            if  opFound && rs1Found && rs2Found {
+                instruction = (uint32(imm) & 0xFE)<<25 | rs2<<20 | rs1<<15 | (uint32(imm) & 0x1F)<<7 | op
+            } else if !rs1Found || !rs2Found {
+                    fmt.Println("Invalid register on line", lineCounter)
+                    os.Exit(0)
+                }
 
         case "addi", "slti", "sltiu", "xori", "ori", "andi", "jalr": // op rd, rs1, immediate
             if len(code) != 4 { fmt.Println("Incorrect argument count on line: ", lineCounter) }
@@ -342,7 +426,15 @@ func main() {
                 fmt.Printf("Error on line %d: Immediate value out of range (should be between -2048 and 2047)\n", lineCounter)
                 os.Exit(0)
             }
-            instruction = uint32(imm)<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]] // code[0] = op, code[1]=rd, code[2]=rs1
+            op, opFound := opBin[code[0]]
+            rd, rdFound := regBin[code[1]]
+            rs1, rs1Found := regBin[code[2]]
+            if  opFound && rdFound && rs1Found {
+                instruction = uint32(imm)<<20 | rs1<<15 | rd<<7 | op
+            }  else if !rdFound || !rs1Found {
+                    fmt.Println("Invalid register on line", lineCounter)
+                    os.Exit(0)
+            }
 
         case "slli", "srli", "srai": // op rd, rs1, immediate
             if len(code) != 4 {
@@ -358,14 +450,31 @@ func main() {
                 fmt.Printf("Error on line %d: Immediate value out of range (should be between 0 and 31)")
                 os.Exit(0)
             }
-            instruction = uint32(imm)<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]] // code[0]=op, code[1]=rd, code[2]=rs1, code[3]=immediate
+            op, opFound := opBin[code[0]]
+            rd, rdFound := regBin[code[1]]
+            rs1, rs1Found := regBin[code[2]]
+            if  opFound && rdFound && rs1Found {
+                instruction = uint32(imm)<<20 | rs1<<15 | rd<<7 | op
+            }  else if !rdFound || !rs1Found {
+                    fmt.Println("Invalid register on line", lineCounter)
+                    os.Exit(0)
+            }
 
         case "add", "sub", "sll", "slt", "sltu", "xor", "srl", "sra", "or", "and": // op rd, rs1, rs2
             if len(code) != 4 {
                 fmt.Println("Incorrect argument count on line: ", lineCounter)
                 os.Exit(0)
+             }
+            op, opFound := opBin[code[0]]
+            rd, rdFound := regBin[code[1]]
+            rs1, rs1Found := regBin[code[2]]
+            rs2, rs2Found := regBin[code[3]]
+            if  opFound && rdFound && rs1Found && rs2Found {
+                instruction = rs2<<20 | rs1<<15 | rd<<7 | op // code[0]=op, code[1]=rd, code[2]=rs1 code[3]=rs2 
+            }  else if !rdFound || !rs1Found || !rs2Found {
+                    fmt.Println("Invalid register on line", lineCounter)
+                    os.Exit(0)
             }
-            instruction = regBin[code[3]]<<20 | regBin[code[2]]<<15 | regBin[code[1]]<<7 | opBin[code[0]] // code[0]=op, code[1]=rd, code[2]=rs1 code[3]=rs2 
 
         case "ecall", "ebreak":
             if len(code) != 1 {
@@ -373,11 +482,11 @@ func main() {
                 os.Exit(0)
             }
             instruction = opBin[code[0]]
+
         default:
             fmt.Println("Syntax Error on line: ", lineCounter)
             os.Exit(0)
         }
-
         fmt.Printf("Address: 0x%08x     Line: %d    Instruction:  0x%08x\n", address, lineCounter, instruction)
         lineCounter++
         address += 4
