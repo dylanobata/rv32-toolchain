@@ -139,6 +139,7 @@ func main() {
     lineCounter := 1
 
     symbolTable := make(map[string]int64, 100)
+    const UNKNOWN = -1
 //    literalPool := make(map[string]int64, 100)
     for scanner.Scan() { // first pass
         line := strings.Split(scanner.Text(), "#")[0] // get any text before the comment "#" and ignore any text after it
@@ -192,21 +193,18 @@ func main() {
             if len(code) == 4 {
                 _, exists := symbolTable[code[3]]
                 if !exists {
-                    symbolTable[code[3]] = -1 // if symbol is not in symbolTable, create entry
+                    symbolTable[code[3]] = UNKNOWN // if symbol is not in symbolTable, create entry with flag -1
                 }
-
             }
-
             if len(code) == 5 {
                 label := strings.TrimSuffix(code[0], ":")
                 _, exists := symbolTable[code[0]]
                 if exists { // check if label exists in symbol table
                     symbolTable[label] = int64(address)
                 }
-
                 _, exists = symbolTable[code[4]]
                 if !exists {
-                    symbolTable[code[4]] = -1
+                    symbolTable[code[4]] = UNKNOWN
                 }
             }
 
@@ -244,7 +242,6 @@ func main() {
                 }
             }
 
-            // check if imm has a constant definition  
         case "addi", "slti", "sltiu", "xori", "ori", "andi", "jalr": // Instruction format: op rd, rs1, imm     or      label:  op rd, rs1, imm
             if len(code) != 4 && len(code) != 5 {
                 fmt.Println("Incorrect argument count on line: ", lineCounter)
@@ -254,12 +251,11 @@ func main() {
                 fmt.Printf("%s not a valid label\n", code[0])
                 os.Exit(0)
             }
-            // check if imm has a constant definition 
             if len(code) == 5 {
                 label := strings.TrimSuffix(code[0], ":")
                 _, exists := symbolTable[label]
                 if exists {
-                    symbolTable[label] = int64(address) // if label exists in symbolTable, update value to valid address
+                    symbolTable[label] = int64(address)
                 }
             }
 
@@ -350,6 +346,8 @@ func main() {
         case "lui", "auipc", "jal":
             if len(code) != 3 { fmt.Println("Incorrect argument count on line: ", lineCounter) }
             imm, err := isValidImmediate(code[2])
+            op, opFound := opBin[code[0]]
+            rd, rdFound := regBin[code[1]]
             if err != nil {
                 fmt.Printf("Error on line %d: %s\n", lineCounter, err)
                 os.Exit(0)
@@ -358,21 +356,34 @@ func main() {
                 fmt.Printf("Error on line %d: Immediate value out of range (should be between 0 and 1048575)\n", lineCounter)
                 os.Exit(0)
             }
-            /*
-            if code[0] == "jal" {
-                instruction = (imm & 0x80000) << 20 | (imm & 0xregBin[code[1]]<<7 | opBin[code[0]
-            }
-            instruction = uint32(imm)<<12 | regBin[code[1]]<<7 | opBin[code[0]]
-            
-        */
-        case "beq", "bne", "blt", "bge", "bltu", "bgeu": // op rs1, rs2, imm
-            /*if len(code) != 4 { fmt.Println("Incorrect argument count on line: ", lineCounter) }
-            imm, err := isValidImmediate(code[3])
-            if err != nil {
-                fmt.Printf("Error on line %d: %s\n", lineCounter, err)
+            if !opFound || !rdFound {
+                fmt.Println("Invalid register on line", lineCounter)
                 os.Exit(0)
             }
-            */
+            if code[0] == "jal" {
+                label := symbolTable[code[2]]
+                label = label - int64(address)
+                instruction = ((uint32(label) & 0x80000)>>19)<<31 | ((uint32(label) & 0x3FE)>>1)<<30 | ((uint32(label) & 0x400)>>10)<<19 | ((uint32(label) & 0x7F8)>>3)<<11 | rd<<7 | op
+            } else { instruction = uint32(imm)<<12 | rd<<7 | op }
+
+        case "beq", "bne", "blt", "bge", "bltu", "bgeu": // op rs1, rs2, imm
+            if len(code) != 4 { fmt.Println("Incorrect argument count on line: ", lineCounter) }
+            label, labelFound := symbolTable[code[3]]
+            if !labelFound {
+                fmt.Printf("On line %d: label not found\n", lineCounter,)
+                os.Exit(0)
+            }
+            label = label - int64(address)
+            op, opFound := opBin[code[0]]
+            rs1, rs1Found := regBin[code[1]]
+            rs2, rs2Found := regBin[code[2]]
+            if  opFound && rs1Found && rs2Found {
+                instruction =  ((uint32(label) & 0x800)>>11)<<31 | ((uint32(label) & 0x7F0)>>5)<<24 | rs2<<20 | rs1<<15 | ((uint32(label) & 0x1E)>>1)<<8 | (uint32(label) & 0x400>>11)<<7 | op
+            } else if !rs1Found || !rs2Found {
+                    fmt.Println("Invalid register on line", lineCounter)
+                    os.Exit(0)
+            }
+
         case "lb", "lh", "lw", "lbu", "lhu": // op rd, imm(rs1)
             if len(code) != 4 {
                 fmt.Println("Incorrect argument count on line: ", lineCounter)
@@ -396,6 +407,7 @@ func main() {
                     os.Exit(0)
                 }
             }
+
         case "sb", "sh", "sw": // op rs2, imm(rs1)
             if len(code) != 4 {
                 fmt.Println("Incorrect argument count on line: ", lineCounter)
@@ -487,7 +499,7 @@ func main() {
             fmt.Println("Syntax Error on line: ", lineCounter)
             os.Exit(0)
         }
-        fmt.Printf("Address: 0x%08x     Line: %d    Instruction:  0x%08x\n", address, lineCounter, instruction)
+        fmt.Printf("Address: 0x%08x     Line: %d     Instruction:  0x%08x\n", address, lineCounter, instruction)
         lineCounter++
         address += 4
 
