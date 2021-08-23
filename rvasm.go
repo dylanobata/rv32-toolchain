@@ -363,7 +363,8 @@ func main() {
             if code[0] == "jal" {
                 label := symbolTable[code[2]]
                 label = label - int64(address)
-                instruction = ((uint32(label) & 0x80000)>>19)<<31 | ((uint32(label) & 0x3FE)>>1)<<30 | ((uint32(label) & 0x400)>>10)<<19 | ((uint32(label) & 0x7F8)>>3)<<11 | rd<<7 | op
+                fmt.Println(label)
+                instruction = (uint32(label) & 0x80000)<<11 | (uint32(label) & 0x7FE)<<20 | (uint32(label) & 0x400)<<19 | (uint32(label) & 0x7F800)<<11 | rd<<7 | op
             } else { instruction = uint32(imm)<<12 | rd<<7 | op }
 
         case "beq", "bne", "blt", "bge", "bltu", "bgeu": // op rs1, rs2, imm
@@ -378,7 +379,8 @@ func main() {
             rs1, rs1Found := regBin[code[1]]
             rs2, rs2Found := regBin[code[2]]
             if  opFound && rs1Found && rs2Found {
-                instruction =  ((uint32(label) & 0x800)>>11)<<31 | ((uint32(label) & 0x7F0)>>5)<<24 | rs2<<20 | rs1<<15 | ((uint32(label) & 0x1E)>>1)<<8 | (uint32(label) & 0x400>>11)<<7 | op
+                fmt.Println(label)
+                instruction =  (uint32(label) & 0x800)<<20 | ((uint32(label) & 0x7E0))<<20 | rs2<<20 | rs1<<15 | (uint32(label) & 0x1E)<<7 | (uint32(label) & 0x400)>>3 | op
             } else if !rs1Found || !rs2Found {
                     fmt.Println("Invalid register on line", lineCounter)
                     os.Exit(0)
