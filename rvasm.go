@@ -8,7 +8,7 @@ import (
     "os"
     "strconv"
     "errors"
-//    "log"
+    "log"
 )
 
 func check(e error) { if e != nil {panic(e)} }
@@ -130,9 +130,11 @@ func main() {
     if len(os.Args) != 2 { fmt.Println("Usage:", os.Args[0], "FILE.s") }
     file, err := os.Open(os.Args[1])
     check(err)
+    defer file.Close()
 
     scanner := bufio.NewScanner(file) // stores content from file
     scanner.Split(bufio.ScanLines)
+
     var code []string
     var instruction uint32
     var address uint32 = 0
@@ -154,6 +156,7 @@ func main() {
             _, exists := symbolTable[label]
             if exists {
                 symbolTable[label] = int64(address) // if label exists in symbolTable, update value to valid address
+                continue
             }
             if len(code) >= 2 { // opcode is in code[1] if code[0] is a label
                 switchOnOp = code[1]
@@ -304,7 +307,8 @@ func main() {
         lineCounter++
         address += 4
 
-   }
+    }
+
     for key, element := range symbolTable {
         fmt.Println("Key:", key, "Element:", element)
     }
@@ -314,9 +318,9 @@ func main() {
     scanner.Split(bufio.ScanLines)
 
     // set up write file for machine code comparison
-    //f, err := os.Create("asm-tests/asm-u-bin/add-ns-mc-u.txt")
-    //if err != nil { log.Fatal(err) }
-    //defer f.Close()
+    f, err := os.Create("asm-tests/asm-u-bin/sb-lb-mc-u.txt")
+    if err != nil { log.Fatal(err) }
+    defer f.Close()
 
     address = 0
     lineCounter = 1
@@ -329,21 +333,15 @@ func main() {
         }
         switchOnOp := code[0] // check if first entry of code is a label or an op
         if strings.HasSuffix(switchOnOp, ":") {
-            label := strings.TrimSuffix(code[0], ":")
-            _, exists := symbolTable[label]
-            if exists {
-                symbolTable[label] = int64(address) // if label exists in symbolTable, update value to valid address
-            }
             if len(code) >= 2 { // opcode is in code[1] if code[0] is a label
                 switchOnOp = code[1]
                 code = code[1:] // reindex array so that op is at index 0 
             } else {
-                fmt.Println("Syntax Error on line: ", lineCounter)
-                os.Exit(0)
+                continue
             }
         }
         switch(switchOnOp) { // switch on operation 
-        case "lui", "auipc", "jal":
+        case "lui", "auipc":
             if len(code) != 3 { fmt.Println("Incorrect argument count on line: ", lineCounter) }
             imm, err := isValidImmediate(code[2])
             op, opFound := opBin[code[0]]
@@ -360,12 +358,23 @@ func main() {
                 fmt.Println("Invalid register on line", lineCounter)
                 os.Exit(0)
             }
-            if code[0] == "jal" {
-                label := symbolTable[code[2]]
-                label = label - int64(address)
-                fmt.Println(label)
-                instruction = (uint32(label) & 0x80000)<<11 | (uint32(label) & 0x7FE)<<20 | (uint32(label) & 0x400)<<19 | (uint32(label) & 0x7F800)<<11 | rd<<7 | op
-            } else { instruction = uint32(imm)<<12 | rd<<7 | op }
+            instruction = uint32(imm)<<12 | rd<<7 | op
+
+        case "jal":
+            if len(code) != 3 { fmt.Println("Incorrect argument count on line: ", lineCounter) }
+            op, opFound := opBin[code[0]]
+            rd, rdFound := regBin[code[1]]
+            label, labelFound := symbolTable[code[2]]
+            if !labelFound {
+                fmt.Println("Error: label not found")
+                os.Exit(0)
+            }
+            if !opFound && !rdFound {
+               fmt.Println("Invalid register on line", lineCounter)
+               os.Exit(0)
+            }
+            label = label - int64(address)
+            instruction = (uint32(label) & 0x80000)<<11 | (uint32(label) & 0x7FE)<<20 | (uint32(label) & 0x400)<<19 | (uint32(label) & 0x7F800)<<11 | rd<<7 | op
 
         case "beq", "bne", "blt", "bge", "bltu", "bgeu": // op rs1, rs2, imm
             if len(code) != 4 { fmt.Println("Incorrect argument count on line: ", lineCounter) }
@@ -379,7 +388,6 @@ func main() {
             rs1, rs1Found := regBin[code[1]]
             rs2, rs2Found := regBin[code[2]]
             if  opFound && rs1Found && rs2Found {
-                fmt.Println(label)
                 instruction =  (uint32(label) & 0x800)<<20 | ((uint32(label) & 0x7E0))<<20 | rs2<<20 | rs1<<15 | (uint32(label) & 0x1E)<<7 | (uint32(label) & 0x400)>>3 | op
             } else if !rs1Found || !rs2Found {
                     fmt.Println("Invalid register on line", lineCounter)
@@ -423,7 +431,7 @@ func main() {
             rs2, rs2Found := regBin[code[1]]
             rs1, rs1Found := regBin[code[3]]
             if  opFound && rs1Found && rs2Found {
-                instruction = (uint32(imm) & 0xFE)<<25 | rs2<<20 | rs1<<15 | (uint32(imm) & 0x1F)<<7 | op
+                instruction = (uint32(imm) & 0xFE0)<<20 | rs2<<20 | rs1<<15 | (uint32(imm) & 0x1F)<<7 | op
             } else if !rs1Found || !rs2Found {
                     fmt.Println("Invalid register on line", lineCounter)
                     os.Exit(0)
@@ -505,9 +513,7 @@ func main() {
         lineCounter++
         address += 4
 
-        // write machine code to file for comparisons
-        //f.WriteString(fmt.Sprintf("0x%08x\n", instruction))
+        //write machine code to file for comparisons
+        f.WriteString(fmt.Sprintf("0x%08x\n", instruction))
     }
-
-    file.Close()
 }
