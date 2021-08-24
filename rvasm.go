@@ -153,17 +153,11 @@ func main() {
         switchOnOp := code[0] // check if first entry of code is a label or an op
         if strings.HasSuffix(switchOnOp, ":") {
             label := strings.TrimSuffix(code[0], ":")
-            _, exists := symbolTable[label]
-            if exists {
-                symbolTable[label] = int64(address) // if label exists in symbolTable, update value to valid address
-                continue
-            }
+            symbolTable[label] = int64(address) // if label exists in symbolTable, update value to valid address
             if len(code) >= 2 { // opcode is in code[1] if code[0] is a label
                 switchOnOp = code[1]
-            } else {
-                fmt.Println("Syntax Error on line: ", lineCounter)
-                os.Exit(0)
-            }
+                code = code[1:]
+            } else { continue }
         }
 
         switch(switchOnOp) {
@@ -318,7 +312,7 @@ func main() {
     scanner.Split(bufio.ScanLines)
 
     // set up write file for machine code comparison
-    f, err := os.Create("asm-tests/asm-u-bin/sb-lb-mc-u.txt")
+    f, err := os.Create("asm-tests/asm-u-bin/beq-bne-mc-u.txt")
     if err != nil { log.Fatal(err) }
     defer f.Close()
 
@@ -384,6 +378,7 @@ func main() {
                 os.Exit(0)
             }
             label = label - int64(address)
+            fmt.Println("Label:", label)
             op, opFound := opBin[code[0]]
             rs1, rs1Found := regBin[code[1]]
             rs2, rs2Found := regBin[code[2]]
