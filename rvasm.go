@@ -9,6 +9,7 @@ import (
     "strconv"
     "errors"
     "log"
+    "encoding/binary"
 )
 
 func check(e error) { if e != nil {panic(e)} }
@@ -200,8 +201,7 @@ func main() {
                     symbolTable[label] = int64(address)
                 }
                 _, exists = symbolTable[code[4]]
-                if !exists {
-                    symbolTable[code[4]] = UNKNOWN
+                if !exists { symbolTable[code[4]] = UNKNOWN
                 }
             }
 
@@ -312,13 +312,19 @@ func main() {
     scanner.Split(bufio.ScanLines)
 
     // set up write file for machine code comparison
-    f, err := os.Create("asm-tests/asm-u-bin/beq-bne-mc-u.txt")
+    f, err := os.Create("add.o") //("asm-tests/asm-u-bin/beq-mc-u.txt")
     if err != nil { log.Fatal(err) }
     defer f.Close()
 
+    // set up header table
+    f.Write([]byte{0x7F, 0x45, 0x4C, 0x46, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0xF3, 0x00, 0x01, 0x00, 0x00, 0x00, 
+                   0x00, 0x00, 0x00, 0x80, 0x34, 0x00, 0x00, 0x00})
+
+    // second pass
     address = 0
     lineCounter = 1
-    for scanner.Scan() { // second pass
+    instructionBuffer := make([]byte, 4) // buffer to store 4 bytes
+    for scanner.Scan() {
         line := strings.Split(scanner.Text(), "#")[0] // get any text before the comment "#" and ignore any text after it
         code = strings.FieldsFunc(line, SplitOn) // split into  operation, operands, and/or labels
         if len(code) == 0 { // code is whitespace, ignore it
@@ -509,6 +515,9 @@ func main() {
         address += 4
 
         //write machine code to file for comparisons
-        f.WriteString(fmt.Sprintf("0x%08x\n", instruction))
+        //f.WriteString(fmt.Sprintf("0x%08x\n", instruction))
+        // put instruction into b buffer 
+        binary.LittleEndian.PutUint32(instructionBuffer, instruction)
+        f.Write(instructionBuffer)
     }
 }
