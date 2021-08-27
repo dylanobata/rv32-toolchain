@@ -316,9 +316,28 @@ func main() {
     if err != nil { log.Fatal(err) }
     defer f.Close()
 
-    // set up header table
-    f.Write([]byte{0x7F, 0x45, 0x4C, 0x46, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0xF3, 0x00, 0x01, 0x00, 0x00, 0x00, 
-                   0x00, 0x00, 0x00, 0x80, 0x34, 0x00, 0x00, 0x00})
+    // set up file header table
+    f.Write([]byte{0x7F, 0x45, 0x4C, 0x46,                   // indicates elf file
+                   0x01,                                     // identifies 32 bit format
+                   0x01,                                     // specify little endian
+                   0x01,                                     // current elf version 
+                   0x00,                                     // target platform, usually set to 0x0 (System V)
+                   0x00,                                     // ABI version
+                   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // zero padding
+                   0x01, 0x00,                               // object relocatable file
+                   0xF3, 0x00,                               // specify machine RISC-V
+                   0x01, 0x00, 0x00, 0x00,                   // specify original elf version
+                   0x00, 0x00, 0x00, 0x80,                   // program entry address
+                   0x34, 0x00, 0x00, 0x00,                   // points to start of program header table 
+                   0x00, 0x00, 0x00, 0x00,                   // points to start of section header table
+                   0x00, 0x00, 0x00, 0x00,                   // e_flags
+                   0x34, 0x00,                               // specify size of header, 52 bytes for 32-bit format
+                   0x00, 0x00,                               // size of program header table entry
+                   0x00, 0x00,                               // contains number of entries in program header table
+                   0x00, 0x00,                               // size of section header entry
+                   0x00, 0x00,                               // number of entries in the section header table
+                   0x00, 0x00,                               // index of the section header table entry that contains the section names
+                   })
 
     // second pass
     address = 0
